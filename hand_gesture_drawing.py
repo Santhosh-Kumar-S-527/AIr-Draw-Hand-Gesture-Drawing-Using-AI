@@ -1,0 +1,88 @@
+import cv2
+import mediapipe as mp
+import numpy as np
+import tkinter as tk
+from tkinter import Button, Canvas
+
+# Initialize Mediapipe Hand Tracking
+mp_hands = mp.solutions.hands
+mp_draw = mp.solutions.drawing_utils
+hands = mp_hands.Hands(min_detection_confidence=0.7, min_tracking_confidence=0.7)
+
+# Setup OpenCV Camera
+cap = cv2.VideoCapture(0)
+
+# Tkinter UI Setup
+root = tk.Tk()
+root.title("AI Hand Gesture Drawing")
+canvas = Canvas(root, width=640, height=480, bg='white')
+canvas.pack()
+
+# Drawing variables
+draw_color = "black"
+prev_x, prev_y = None, None
+
+def change_color(color):
+    global draw_color
+    draw_color = color
+
+def clear_canvas():
+    canvas.delete("all")
+
+def process_frame():
+    global prev_x, prev_y
+    ret, frame = cap.read()
+    if not ret:
+        return
+    
+    frame = cv2.flip(frame, 1)
+    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    results = hands.process(rgb_frame)
+    
+    if results.multi_hand_landmarks:
+        for hand_landmarks in results.multi_hand_landmarks:
+            mp_draw.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+            x, y = int(hand_landmarks.landmark[8].x * 640), int(hand_landmarks.landmark[8].y * 480)
+            if prev_x is not None and prev_y is not None:
+                canvas.create_line(prev_x, prev_y, x, y, fill=draw_color, width=3)
+            prev_x, prev_y = x, y
+    else:
+        prev_x, prev_y = None, None
+    
+    cv2.imshow("Hand Gesture Drawing", frame)
+    root.after(10, process_frame)
+
+def close_app():
+    cap.release()
+    cv2.destroyAllWindows()
+    root.destroy()
+
+# Keyboard shortcuts
+def key_pressed(event):
+    key = event.char.lower()
+    if key == "b":
+        change_color("black")
+    elif key == "r":
+        change_color("red")
+    elif key == "g":
+        change_color("green")
+    elif key == "u":
+        change_color("blue")
+    elif key == "c":
+        clear_canvas()
+    elif event.keysym == "Escape":
+        close_app()
+
+root.bind("<KeyPress>", key_pressed)
+
+# Color Buttons
+Button(root, text="Black (B)", command=lambda: change_color("black"), bg="black", fg="white").pack(side=tk.LEFT)
+Button(root, text="Red (R)", command=lambda: change_color("red"), bg="red", fg="white").pack(side=tk.LEFT)
+Button(root, text="Blue (U)", command=lambda: change_color("blue"), bg="blue", fg="white").pack(side=tk.LEFT)
+Button(root, text="Green (G)", command=lambda: change_color("green"), bg="green", fg="white").pack(side=tk.LEFT)
+Button(root, text="Clear (C)", command=clear_canvas, bg="gray", fg="white").pack(side=tk.LEFT)
+Button(root, text="Exit (Esc)", command=close_app, bg="red", fg="white").pack(side=tk.RIGHT)
+
+# Start Processing
+process_frame()
+root.mainloop()
